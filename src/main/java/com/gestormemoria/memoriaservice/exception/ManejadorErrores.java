@@ -7,6 +7,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.client.RestClientException;
 
 /** Mensajes en lenguaje de persona: nunca una traza ni un código crudo (espíritu de RQ-01). */
 @RestControllerAdvice
@@ -35,5 +36,21 @@ public class ManejadorErrores {
     @ExceptionHandler(SecuenciaNoEncontradaException.class)
     public ResponseEntity<Map<String, String>> noEncontrada(SecuenciaNoEncontradaException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("mensaje", ex.getMessage()));
+    }
+
+    @ExceptionHandler({MapaNoEncontradoException.class, CorridaNoEncontradaException.class})
+    public ResponseEntity<Map<String, String>> recursoNoEncontrado(RuntimeException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("mensaje", ex.getMessage()));
+    }
+
+    @ExceptionHandler(MapaEnUsoException.class)
+    public ResponseEntity<Map<String, String>> mapaEnUso(MapaEnUsoException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("mensaje", ex.getMessage()));
+    }
+
+    @ExceptionHandler(RestClientException.class)
+    public ResponseEntity<Map<String, String>> motorNoDisponible(RestClientException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of("mensaje",
+                "El motor de asignación no responde ahora. La corrida no se guardó; vuelve a intentarlo."));
     }
 }

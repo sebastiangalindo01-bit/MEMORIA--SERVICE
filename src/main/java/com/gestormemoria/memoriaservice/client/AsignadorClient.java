@@ -1,53 +1,43 @@
 package com.gestormemoria.memoriaservice.client;
 
-import java.util.HashMap;
-import java.util.Map;
-
+import com.gestormemoria.memoriaservice.model.MapaMemoria;
+import com.gestormemoria.memoriaservice.model.Secuencia;
+import java.util.*;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClient;
 
 @Component
 public class AsignadorClient {
+    private final RestClient http;
 
-    private final RestTemplate restTemplate;
-
-    @Value("${asignador.service.url:http://localhost:8081}")
-    private String asignadorServiceUrl;
-
-    public AsignadorClient() {
-        this.restTemplate = new RestTemplate();
+    public AsignadorClient(@Value("${asignador.service.url:http://localhost:8080}") String baseUrl) {
+        this.http = RestClient.builder().baseUrl(baseUrl).build();
     }
 
-    public Map<String, Object> enviarSimulacion(Long mapaId, Long secuenciaId, String estrategia) {
-        int codigoEstrategia = traducirEstrategia(estrategia);
-
-        // Arreglos planos requeridos por el contrato nativo / asignador[cite: 18]
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("mapaId", mapaId);
-        requestBody.put("secuenciaId", secuenciaId);
-        requestBody.put("bloqueInicio", new int[]{0, 100, 250});
-        requestBody.put("bloqueTamano", new int[]{100, 150, 200});
-        requestBody.put("nBloques", 3);
-        requestBody.put("opTipo", new int[]{0, 0});
-        requestBody.put("opProceso", new int[]{1, 2});
-        requestBody.put("opTamano", new int[]{50, 80});
-        requestBody.put("nOps", 2);
-        requestBody.put("estrategia", codigoEstrategia);
-
-        String url = asignadorServiceUrl + "/simular";
-        return restTemplate.postForObject(url, requestBody, Map.class);
-    }
-
-    private int traducirEstrategia(String estrategia) {
-        if (estrategia == null) {
-            throw new IllegalArgumentException("La estrategia no puede ser nula");
+    public Map<String, Object> simular(MapaMemoria mapa, Secuencia secuencia, int estrategia) {
+        int nBloques = mapa.getBloques().size();
+        int nOps = secuencia.getOperaciones().size();
+        int[] inicios = new int[nBloques], tamanos = new int[nBloques];
+        int[] tipos = new int[nOps], procesos = new int[nOps], solicitudes = new int[nOps];
+        for (int i = 0; i < nBloques; i++) { inicios[i] = mapa.getBloques().get(i).getInicio(); tamanos[i] = mapa.getBloques().get(i).getTamano(); }
+        for (int i = 0; i < nOps; i++) {
+            var op = secuencia.getOperaciones().get(i);
+            tipos[i] = op.getTipo().getCodigo(); procesos[i] = op.getProceso(); solicitudes[i] = op.getTamano() == null ? 0 : op.getTamano();
         }
-        switch (estrategia.toUpperCase()) {
-            case "FIRST_FIT": return 0;
-            case "BEST_FIT": return 1;
-            case "WORST_FIT": return 2;
-            default: throw new IllegalArgumentException("Estrategia no válida: " + estrategia);
-        }
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("mapaId", mapa.getId()); body.put("secuenciaId", secuencia.getId());
+        body.put("bloqueInicio", inicios); body.put("bloqueTamano", tamanos); body.put("nBloques", nBloques);
+        body.put("opTipo", tipos); body.put("opProceso", procesos); body.put("opTamano", solicitudes); body.put("nOps", nOps); body.put("estrategia", estrategia);
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        RestClient.RequestBodySpec request = http.post().uri("/simular").contentType(org.springframework.http.MediaType.APPLICATION_JSON);
+        if (auth instanceof JwtAuthenticationToken jwt) request.header(HttpHeaders.AUTHORIZATION, "Bearer " + jwt.getToken().getTokenValue());
+        Map<?, ?> response = request.body(body).retrieve().body(Map.class);
+        if (response == null) throw new IllegalStateException("El asignador no devolvió un resultado.");
+        Map<String, Object> result = new LinkedHashMap<>(); response.forEach((k, v) -> result.put(String.valueOf(k), v));
+        return result;
     }
 }

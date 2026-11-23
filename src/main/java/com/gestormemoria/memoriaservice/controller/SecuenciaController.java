@@ -12,26 +12,19 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/secuencias")
 public class SecuenciaController {
-
     private final SecuenciaService servicio;
 
-    public SecuenciaController(SecuenciaService servicio) {
-        this.servicio = servicio;
-    }
+    public SecuenciaController(SecuenciaService servicio) { this.servicio = servicio; }
 
     @PostMapping
-    public ResponseEntity<SecuenciaResponse> crear(@Valid @RequestBody SecuenciaRequest req) {
-        SecuenciaResponse creada = servicio.crear(req);
+    public ResponseEntity<SecuenciaResponse> crear(@Valid @RequestBody SecuenciaRequest request) {
+        SecuenciaResponse creada = servicio.crear(request);
         return ResponseEntity.created(URI.create("/secuencias/" + creada.id())).body(creada);
     }
 
     @GetMapping("/{id}")
-    public SecuenciaResponse obtener(@PathVariable Long id) {
-        return servicio.obtener(id);
-    }
+    public SecuenciaResponse obtener(@PathVariable Long id) { return servicio.obtener(id); }
 
     @GetMapping
-    public List<SecuenciaResponse> listar() {
-        return servicio.listar();
-    }
+    public List<SecuenciaResponse> listar() { return servicio.listar(); }
 }

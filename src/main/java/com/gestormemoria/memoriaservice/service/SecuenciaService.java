@@ -15,30 +15,25 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class SecuenciaService {
-
     private final SecuenciaRepository repositorio;
 
-    public SecuenciaService(SecuenciaRepository repositorio) {
-        this.repositorio = repositorio;
-    }
+    public SecuenciaService(SecuenciaRepository repositorio) { this.repositorio = repositorio; }
 
     @Transactional
     public SecuenciaResponse crear(SecuenciaRequest req) {
         validarOperaciones(req.operaciones());
-
         Secuencia secuencia = new Secuencia(req.nombre().trim(), req.semilla());
-        int orden = 1; // el orden de llegada es el orden de la secuencia: no se reordena nada
-        for (OperacionRequest o : req.operaciones()) {
-            Integer tamano = o.tipo() == TipoOperacion.ASIGNAR ? o.tamano() : null;
-            secuencia.agregar(new Operacion(orden++, o.tipo(), o.proceso(), tamano));
+        int orden = 1;
+        for (OperacionRequest op : req.operaciones()) {
+            Integer tamano = op.tipo() == TipoOperacion.ASIGNAR ? op.tamano() : null;
+            secuencia.agregar(new Operacion(orden++, op.tipo(), op.proceso(), tamano));
         }
         return SecuenciaResponse.de(repositorio.save(secuencia));
     }
 
     @Transactional(readOnly = true)
     public SecuenciaResponse obtener(Long id) {
-        return repositorio.findById(id)
-                .map(SecuenciaResponse::de)
+        return repositorio.findById(id).map(SecuenciaResponse::de)
                 .orElseThrow(() -> new SecuenciaNoEncontradaException(id));
     }
 
@@ -49,16 +44,10 @@ public class SecuenciaService {
 
     private void validarOperaciones(List<OperacionRequest> ops) {
         for (int i = 0; i < ops.size(); i++) {
-            OperacionRequest o = ops.get(i);
-            int posicion = i + 1;
-            if (o.proceso() < 0) {
-                throw new SecuenciaInvalidaException(
-                        "En la operación " + posicion + ", el proceso no puede ser negativo.");
-            }
-            if (o.tipo() == TipoOperacion.ASIGNAR && (o.tamano() == null || o.tamano() <= 0)) {
-                throw new SecuenciaInvalidaException(
-                        "En la operación " + posicion + ", asignar necesita un tamaño en KB mayor que 0.");
-            }
+            OperacionRequest op = ops.get(i);
+            if (op.proceso() < 0) throw new SecuenciaInvalidaException("En la operación " + (i + 1) + ", el proceso no puede ser negativo.");
+            if (op.tipo() == TipoOperacion.ASIGNAR && (op.tamano() == null || op.tamano() <= 0))
+                throw new SecuenciaInvalidaException("La operación " + (i + 1) + " debe asignar un tamaño mayor que cero.");
         }
     }
 }
